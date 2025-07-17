@@ -1,0 +1,256 @@
+zsh_os_bg=#334159
+zsh_os_fg=15
+zsh_user_bg=#415166
+zsh_user_fg=16
+zsh_dir_bg=#4587a1
+zsh_dir_fg=16
+zsh_git_bg=#3ba883
+zsh_git_fg=16
+zsh_python_bg=#e0af60
+zsh_python_fg=16
+zsh_jobs_bg=#6a4f7a
+zsh_jobs_fg=16
+zsh_root_os_bg=#ff0000
+zsh_bright_green=150
+zsh_greenish_yellow=186
+zsh_bright_teal=115
+zsh_error_color=210
+zsh_arg_color=189
+zsh_quote_color=229
+zsh_autosuggest_fg=103
+
+# Calculate transitional color between two hex colors
+calc_transition_color() {
+    local color1=$1
+    local color2=$2
+    color1=${color1//\#/}
+    color2=${color2//\#/}
+    local r1=$((16#${color1:0:2}))
+    local g1=$((16#${color1:2:2}))
+    local b1=$((16#${color1:4:2}))
+    local r2=$((16#${color2:0:2}))
+    local g2=$((16#${color2:2:2}))
+    local b2=$((16#${color2:4:2}))
+    local r_avg=$(( (r1 + r2) / 2 ))
+    local g_avg=$(( (g1 + g2) / 2 ))
+    local b_avg=$(( (b1 + b2) / 2 ))
+    printf "#%02x%02x%02x" $r_avg $g_avg $b_avg
+}
+
+# Determine OS logo based on distribution
+get_os_logo() {
+    if [[ -f /etc/arch-release ]]; then
+        echo ""
+    elif [[ -f /etc/lsb-release ]] && grep -qi ubuntu /etc/lsb-release; then
+        echo "󰕈"
+    elif [[ -f /etc/os-release ]] && grep -qi kali /etc/os-release; then
+        echo ""
+    elif [[ -f /etc/os-release ]] && grep -qi parrot /etc/os-release; then
+        echo ""
+    else
+        echo ""
+    fi
+}
+
+# Set up initial prompt segments
+setup_os_user_prompt() {
+    local os_background=$zsh_os_bg
+    [[ $EUID -eq 0 ]] && os_background=$zsh_root_os_bg
+    os_prompt="%F{$os_background}%F{$zsh_os_fg}%K{$os_background}$(get_os_logo)  %F{$os_background}%K{$(calc_transition_color $os_background $zsh_user_bg)}"
+    user_prompt="%F{$(calc_transition_color $os_background $zsh_user_bg)}%K{$zsh_user_bg}%F{$zsh_user_fg}%K{$zsh_user_bg} %n %F{$zsh_user_bg}%K{$(calc_transition_color $zsh_user_bg $zsh_dir_bg)}"
+}
+
+# Extract virtual environment name
+get_python_venv() {
+    [[ -n "$VIRTUAL_ENV" ]] || return
+    local venv_name="${VIRTUAL_ENV##*/}"
+    [[ "$venv_name" = "."* ]] && venv_name="$(basename "$(dirname "$VIRTUAL_ENV")")"
+    echo "$venv_name"
+}
+
+# Convert number to superscript
+to_superscript() {
+    local number="$1"
+    local superscript_digits=(⁰ ¹ ² ³ ⁴ ⁵ ⁶ ⁷ ⁸ ⁹)
+    local digits=(${(s::)number})
+    local superscript=""
+    for digit in "${digits[@]}"; do
+        superscript+="${superscript_digits[digit + 1]}"
+    done
+    echo "$superscript"
+}
+
+# Truncate current path for display
+truncate_path() {
+    local depth=2
+    local full_path=${PWD/#$HOME/\~}
+    local parts=(${(s:/:)full_path})
+    local total=${#parts[@]}
+    (( depth = depth > total ? total : depth < 1 ? 1 : depth ))
+    if (( total > depth )); then
+        local truncated=".../${(j:/:)parts[-$depth,-1]}"
+        if [[ ${#truncated} -lt ${#full_path} ]]; then
+            TRUNC_PATH="$truncated"
+        else
+            TRUNC_PATH="$full_path"
+        fi
+    else
+        TRUNC_PATH="$full_path"
+    fi
+    [[ -z "$TRUNC_PATH" ]] && TRUNC_PATH="/"
+}
+
+# Render git status information
+render_git_info() {
+    git rev-parse --is-inside-work-tree &>/dev/null || return
+    local git_branch ahead behind staged conflicts changed untracked
+    local status_line
+    git_branch=$(git symbolic-ref --short HEAD 2>/dev/null || git describe --tags --exact-match 2>/dev/null || echo "detached")
+    status_line=$(git status -sb 2>/dev/null | head -n1)
+    ahead=$(echo "$status_line" | grep -o 'ahead [0-9]\+' | awk '{print $2}')
+    behind=$(echo "$status_line" | grep -o 'behind [0-9]\+' | awk '{print $2}')
+    ahead=${ahead:-0}
+    behind=${behind:-0}
+    staged=$(git diff --cached --name-status | wc -l | tr -d ' ')
+    conflicts=$(git diff --name-only --diff-filter=U | wc -l | tr -d ' ')
+    changed=$(git diff --name-status | wc -l | tr -d ' ')
+    untracked=$(git ls-files --others --exclude-standard | wc -l | tr -d ' ')
+    prompt_segments+="%F{$current_bg}%K{$(calc_transition_color $current_bg $zsh_git_bg)}"
+    prompt_segments+="%F{$(calc_transition_color $current_bg $zsh_git_bg)}%K{$zsh_git_bg}"
+    prompt_segments+="%F{$zsh_git_fg}%K{$zsh_git_bg} "
+    prompt_segments+=" $git_branch"
+    (( ahead > 0 ))     && prompt_segments+=" ⇡$(to_superscript $ahead)"
+    (( behind > 0 ))    && prompt_segments+=" ⇣$(to_superscript $behind)"
+    (( staged > 0 ))    && prompt_segments+=" 󰱑$(to_superscript $staged)"
+    (( conflicts > 0 )) && prompt_segments+=" !$(to_superscript $conflicts)"
+    (( changed > 0 ))   && prompt_segments+=" $(to_superscript $changed)"
+    (( untracked > 0 )) && prompt_segments+=" $(to_superscript $untracked)"
+    prompt_segments+=" "
+    current_bg=$zsh_git_bg
+}
+
+# Build the ZSH prompt
+build_prompt() {
+    local last_status=$?
+    truncate_path
+    setup_os_user_prompt
+    local prompt_segments="$os_prompt$user_prompt"
+    prompt_segments+="%F{$(calc_transition_color $zsh_user_bg $zsh_dir_bg)}%K{$zsh_dir_bg}"
+    prompt_segments+="%K{$zsh_dir_bg}%F{$zsh_dir_fg} $TRUNC_PATH "
+    local current_bg=$zsh_dir_bg
+    render_git_info
+    local venv_name=$(get_python_venv)
+    if [[ -n "$venv_name" ]]; then
+        prompt_segments+="%F{$current_bg}%K{$(calc_transition_color $current_bg $zsh_python_bg)}"
+        prompt_segments+="%F{$(calc_transition_color $current_bg $zsh_python_bg)}%K{$zsh_python_bg}"
+        prompt_segments+="%F{$zsh_python_fg}%K{$zsh_python_bg}  $venv_name "
+        current_bg=$zsh_python_bg
+    fi
+    local num_jobs=${#jobstates}
+    if [[ $num_jobs -gt 0 ]]; then
+        local jobs_bg=$zsh_jobs_bg
+        local jobs_fg=$zsh_jobs_fg
+        prompt_segments+="%F{$current_bg}%K{$(calc_transition_color $current_bg $jobs_bg)}"
+        prompt_segments+="%F{$(calc_transition_color $current_bg $jobs_bg)}%K{$jobs_bg}"
+        prompt_segments+="%F{$jobs_fg}%K{$jobs_bg} $num_jobs jobs "
+        current_bg=$jobs_bg
+    fi
+    prompt_segments+="%F{$current_bg}%k%f"
+    if (( command_not_found )) || { (( last_status != 0 )) && (( last_status != 130 )) }; then
+        local status_color=$zsh_error_color
+        local status_char="➤"
+    else
+        local status_color=$zsh_os_bg
+        [[ $EUID -eq 0 ]] && status_color=$zsh_root_os_bg
+        local status_char="➤"
+    fi
+    command_not_found=0
+    local character_prompt_1=$'\n'"%F{$status_color}╭─"
+    local character_prompt_2=$'\n'"%F{$status_color}╰─$status_char %f"
+    PROMPT="$character_prompt_1$prompt_segments$character_prompt_2"
+}
+
+# Fuzzy history search widget
+fzf-history-widget() {
+    local selected=$(fc -rl 1 | fzf --height=40% --reverse)
+    if [[ -n $selected ]]; then
+        zle vi-fetch-history -n $selected
+    fi
+    zle reset-prompt
+}
+
+# Set terminal title
+precmd_terminal_title() {
+    print -Pn "\e]0;%n@%m: %~\a"
+}
+
+typeset -A ZSH_HIGHLIGHT_STYLES
+ZSH_HIGHLIGHT_STYLES[precommand]="fg=$zsh_bright_green,bold"
+ZSH_HIGHLIGHT_STYLES[command]="fg=$zsh_bright_green"
+ZSH_HIGHLIGHT_STYLES[alias]="fg=$zsh_bright_green,bold"
+ZSH_HIGHLIGHT_STYLES[builtin]="fg=$zsh_bright_green"
+ZSH_HIGHLIGHT_STYLES[function]="fg=$zsh_bright_green"
+ZSH_HIGHLIGHT_STYLES[path]="none"
+ZSH_HIGHLIGHT_STYLES[unknown-token]="fg=$zsh_error_color,bold"
+ZSH_HIGHLIGHT_STYLES[single-hyphen-option]="fg=$zsh_greenish_yellow"
+ZSH_HIGHLIGHT_STYLES[double-hyphen-option]="fg=$zsh_greenish_yellow,bold"
+ZSH_HIGHLIGHT_STYLES[comment]="fg=$zsh_bright_teal,italic"
+ZSH_HIGHLIGHT_STYLES[arg0]="fg=$zsh_arg_color"
+ZSH_HIGHLIGHT_STYLES[redirection]="fg=$zsh_greenish_yellow,bold"
+ZSH_HIGHLIGHT_STYLES[globbing]="fg=$zsh_python_bg,bold"
+ZSH_HIGHLIGHT_STYLES[single-quoted-argument]="fg=$zsh_quote_color"
+ZSH_HIGHLIGHT_STYLES[double-quoted-argument]="fg=$zsh_quote_color"
+ZSH_HIGHLIGHT_STYLES[back-quoted-argument]="fg=$zsh_quote_color,bold"
+
+autoload -Uz up-line-or-beginning-search down-line-or-beginning-search
+zle -N up-line-or-beginning-search
+zle -N down-line-or-beginning-search
+bindkey '^[[A' up-line-or-beginning-search
+bindkey '^[OA' up-line-or-beginning-search
+bindkey '^[[B' down-line-or-beginning-search
+bindkey '^[OB' down-line-or-beginning-search
+
+zstyle ':completion:*' menu select
+zstyle ':completion:*' group-name ''
+zstyle ':completion:*' matcher-list 'm:{a-z}={A-Za-z}'
+zstyle ':completion:*' use-cache on
+zstyle ':completion:*' cache-path ~/.zsh/cache
+zstyle ':completion:*:*:*:*:descriptions' format '%F{147}-- %d --%f'
+zstyle ':completion:*:messages' format '%F{116}-- %d --%f'
+zstyle ':completion:*:warnings' format '%F{210}-- no matches --%f'
+zstyle ':completion:*' list-colors "${(s.:.)LS_COLORS}"
+
+setopt auto_cd
+setopt auto_pushd
+setopt pushd_ignore_dups
+setopt pushdminus
+
+HISTFILE=~/.zsh_history
+HISTSIZE=10000
+SAVEHIST=10000
+setopt appendhistory
+setopt share_history
+setopt hist_ignore_all_dups
+setopt hist_reduce_blanks
+
+autoload -U edit-command-line
+zle -N edit-command-line
+bindkey '^xe' edit-command-line
+bindkey '^x^e' edit-command-line
+
+zle -N fzf-history-widget
+bindkey '^r' fzf-history-widget
+
+[[ -f /usr/share/zsh/plugins/zsh-autosuggestions/zsh-autosuggestions.zsh ]] && \
+    source /usr/share/zsh/plugins/zsh-autosuggestions/zsh-autosuggestions.zsh
+ZSH_AUTOSUGGEST_HIGHLIGHT_STYLE="fg=$zsh_autosuggest_fg"
+bindkey '^ ' autosuggest-accept
+
+[[ -f /usr/share/zsh/plugins/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh ]] && \
+    source /usr/share/zsh/plugins/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh
+
+autoload -Uz compinit
+compinit -d ~/.zsh/zcompdump-$ZSH_VERSION
+precmd_functions+=(build_prompt)
+command_not_found=0
+precmd_functions+=(precmd_terminal_title)
