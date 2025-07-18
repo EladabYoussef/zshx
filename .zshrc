@@ -241,13 +241,29 @@ bindkey '^x^e' edit-command-line
 zle -N fzf-history-widget
 bindkey '^r' fzf-history-widget
 
-[[ -f /usr/share/zsh/plugins/zsh-autosuggestions/zsh-autosuggestions.zsh ]] && \
+# Load zsh-autosuggestions from various possible locations
+if [[ -f /usr/share/zsh-autosuggestions/zsh-autosuggestions.zsh ]]; then
+    source /usr/share/zsh-autosuggestions/zsh-autosuggestions.zsh
+elif [[ -f /usr/share/zsh/plugins/zsh-autosuggestions/zsh-autosuggestions.zsh ]]; then
     source /usr/share/zsh/plugins/zsh-autosuggestions/zsh-autosuggestions.zsh
-ZSH_AUTOSUGGEST_HIGHLIGHT_STYLE="fg=$zsh_autosuggest_fg"
-bindkey '^ ' autosuggest-accept
+elif [[ -f ~/.zsh/zsh-autosuggestions/zsh-autosuggestions.zsh ]]; then
+    source ~/.zsh/zsh-autosuggestions/zsh-autosuggestions.zsh
+fi
 
-[[ -f /usr/share/zsh/plugins/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh ]] && \
+# Configure autosuggestions if loaded
+if (( $+functions[_zsh_autosuggest_start] )); then
+    ZSH_AUTOSUGGEST_HIGHLIGHT_STYLE="fg=$zsh_autosuggest_fg"
+    bindkey '^ ' autosuggest-accept
+fi
+
+# Load zsh-syntax-highlighting from various possible locations
+if [[ -f /usr/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh ]]; then
+    source /usr/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh
+elif [[ -f /usr/share/zsh/plugins/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh ]]; then
     source /usr/share/zsh/plugins/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh
+elif [[ -f ~/.zsh/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh ]]; then
+    source ~/.zsh/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh
+fi
 
 autoload -Uz compinit
 compinit -d ~/.zsh/zcompdump-$ZSH_VERSION
