@@ -39,7 +39,9 @@ calc_transition_color() {
 
 # Determine OS logo based on distribution
 get_os_logo() {
-    if [[ -f /etc/arch-release ]]; then
+    if [[ "$(uname)" == "Darwin" ]]; then
+        echo "󰀵"
+    elif [[ -f /etc/arch-release ]]; then
         echo ""
     elif [[ -f /etc/lsb-release ]] && grep -qi ubuntu /etc/lsb-release; then
         echo "󰕈"
