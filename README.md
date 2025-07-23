@@ -90,6 +90,9 @@ Enhanced security awareness:
 
    # On Ubuntu/Debian
    sudo apt install zsh-autosuggestions zsh-syntax-highlighting
+
+   # On macOS (via Homebrew)
+   brew install zsh-autosuggestions zsh-syntax-highlighting
    ```
 
 5. Restart your terminal or source the configuration:
