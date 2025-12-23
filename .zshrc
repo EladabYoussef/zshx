@@ -8,6 +8,8 @@ zsh_git_bg=#3ba883
 zsh_git_fg=16
 zsh_python_bg=#e0af60
 zsh_python_fg=16
+zsh_conda_bg=#44A833
+zsh_conda_fg=16
 zsh_jobs_bg=#6a4f7a
 zsh_jobs_fg=16
 zsh_root_os_bg=#ff0000
@@ -62,13 +64,14 @@ setup_os_user_prompt() {
     user_prompt="%F{$(calc_transition_color $os_background $zsh_user_bg)}%K{$zsh_user_bg}%F{$zsh_user_fg}%K{$zsh_user_bg} %n %F{$zsh_user_bg}%K{$(calc_transition_color $zsh_user_bg $zsh_dir_bg)}"
 }
 
-# Extract virtual environment name
-get_python_venv() {
+get_conda_env() {
     if [[ -n "$CONDA_DEFAULT_ENV" ]]; then
         echo "$CONDA_DEFAULT_ENV"
         return
     fi
+}
 
+get_python_venv() {
     if [[ -n "$VIRTUAL_ENV" ]]; then
         local venv_name="${VIRTUAL_ENV##*/}"
         [[ "$venv_name" = "."* ]] && venv_name="$(basename "$(dirname "$VIRTUAL_ENV")")"
@@ -155,6 +158,15 @@ build_prompt() {
         prompt_segments+="%F{$zsh_python_fg}%K{$zsh_python_bg}  $venv_name "
         current_bg=$zsh_python_bg
     fi
+
+    local venv_name=$(get_conda_env)
+    if [[ -n "$venv_name" ]]; then
+        prompt_segments+="%F{$current_bg}%K{$(calc_transition_color $current_bg $zsh_conda_bg)}"
+        prompt_segments+="%F{$(calc_transition_color $current_bg $zsh_conda_bg)}%K{$zsh_conda_bg}"
+        prompt_segments+="%F{$zsh_conda_fg}%K{$zsh_conda_bg}  $venv_name "
+        current_bg=$zsh_conda_bg
+    fi
+
     local num_jobs=${#jobstates}
     if [[ $num_jobs -gt 0 ]]; then
         local jobs_bg=$zsh_jobs_bg
